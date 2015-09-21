@@ -1,0 +1,16 @@
+{
+  "name": "PageSigner helper app",
+  "description": "Only install this app in combination with PageSigner extension.",
+  "version": "1.0",
+  "manifest_version": 2,
+  "app": {
+    "background": {
+      "scripts": ["background.js"]
+    }
+  },
+  "sockets": {
+	"tcp": {
+			"connect": "*"
+			}
+	}		  
+}
