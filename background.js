@@ -1,6 +1,3 @@
-var socketId;
-var buffer = [];
-
 //converts string to bytearray
 function str2ba(str){
 	if (typeof(str) !== "string"){
@@ -25,20 +22,20 @@ function ba2str(ba){
 }
 
 
-var connections ={}; //uid:buffer dictionary
+var connections ={}; //uid:{buffer:, socketId:} dictionary
 
 chrome.runtime.onMessageExternal.addListener(
   function(request, sender, sendResponse) {
 	  console.log('received command', request.command);
 		if (request.command === 'connect'){
-			connections[request.uid] = [];
+			connections[request.uid] = {buffer:[], socketId:0};
 			create_socket(request.args.name, request.args.port, sendResponse, request.uid);
 			//must explicitely return true, see
 			//https://code.google.com/p/chromium/issues/detail?id=343007
 			return true;
 		}
 		else if (request.command === 'send'){
-			send_data(request.args.data);
+			send_data(request.args.data, connections[request.uid].socketId);
 			return true;
 		}
 		else if (request.command === 'recv'){
@@ -46,19 +43,19 @@ chrome.runtime.onMessageExternal.addListener(
 			return true;
 		}
 		else if (request.command === 'close'){
-			close();
+			close(connections[request.uid].socketId);
 			return true;
 		}
     });
 
 
 function recv(resp, uid){
-	console.log('in begin recv, length', connections[uid].length, uid);
+	console.log('in begin recv, length', connections[uid].buffer.length, uid);
 	var timer = setInterval(function(){
-		if (connections[uid].length > 0){
+		if (connections[uid].buffer.length > 0){
 			clearInterval(timer);
-			var tmp = connections[uid];
-			connections[uid] = [];
+			var tmp = connections[uid].buffer;
+			connections[uid].buffer = [];
 			console.log('sending back', tmp);
 			resp({'data':tmp});
 		}
@@ -67,7 +64,7 @@ function recv(resp, uid){
 }
 
 
-function send_data(data){
+function send_data(data, socketId){
 	var ab = new ArrayBuffer(data.length);
 	var dv = new DataView(ab);
 	for(var i=0; i < data.length; i++){
@@ -85,7 +82,8 @@ function send_data(data){
 
 function create_socket(name, port, resp, uid){
 	chrome.sockets.tcp.create(function(createInfo){
-		socketId = createInfo.socketId;
+		var socketId = createInfo.socketId;
+		connections[uid].socketId = socketId;
 		chrome.sockets.tcp.connect(socketId, name , port, function(result){
 			if (result < 0){
 			  console.log('socket connect error');
@@ -104,13 +102,13 @@ function create_socket(name, port, resp, uid){
 					int_array.push(view.getUint8(i));
 				}
 				var str = ba2str(int_array);
-				connections[uid] = [].concat(connections[uid], int_array);
+				connections[uid].buffer = [].concat(connections[uid].buffer, int_array);
 			});
 		});
 	});
 }
 
 
-function close(){
+function close(socketId){
 	chrome.sockets.tcp.close(socketId);
 }
